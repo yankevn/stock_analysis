@@ -1,1 +1,13 @@
-
+beautifulsoup4==4.4.1
+boto3==1.34.54
+botocore==1.34.54
+html-table-parser-python3==0.3.1
+jmespath==1.0.1
+numpy==1.26.4
+pandas==2.2.1
+python-dateutil==2.9.0.post0
+pytz==2024.1
+s3transfer==0.10.0
+six==1.16.0
+tzdata==2024.1
+urllib3==2.0.7

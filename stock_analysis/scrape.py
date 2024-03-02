@@ -3,7 +3,7 @@ from pprint import pprint
 
 # for parsing all the tables present 
 # on the website
-from html_table_parser.parser import HTMLTableParser
+from html_table_parser import HTMLTableParser
 
 # for converting the parsed data in a
 # pandas dataframe
