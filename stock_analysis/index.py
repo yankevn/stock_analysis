@@ -2,71 +2,65 @@ import pandas as pd
 from pprint import pprint
 import re
 
-from model import get_db_client
+from dynamodb import (
+    create_tables_if_not_exist,
+    put_pandas_dataframe,
+    PAGE_TO_DB,
+)
 from scrape import scrape_stock
 
-# income, balance sheet, and ratios
-PAGE_TO_DB = {
-    '': "Income",
-    'balance-sheet': "BalanceSheet",
-    'cash-flow-statement': "CashFlow",
-    'ratios': "Ratios",
-}
 
-def test():
-    # Connect to database
-    client = get_db_client()
-    print(client.list_tables())
-# test()
+STOCK_TICKERS_FILE = "stock_symbols.txt"
+stock_tickers = []
+with open(STOCK_TICKERS_FILE) as infile:
+    stock_tickers = infile.read().splitlines()
 
-stock_symbol = "GOOGL"
-for page_type in PAGE_TO_DB.keys():
-    url = f"https://stockanalysis.com/stocks/{stock_symbol}/financials/{page_type}"
-    # URL needs to end with '/', otherwise permanent redirect
-    if url[-1] != '/':
-        url += '/'
-    print(f"Scraping {url}")
-    p = scrape_stock(url)
-    df = pd.DataFrame(p.tables[0])
 
-    # Transpose and drop the paywalled years
-    df = df.T
+create_tables_if_not_exist()
 
-    # Make the top row the header
-    new_header = df.iloc[0]
-    df = df[1:]
-    df.columns = new_header
-    df.columns.name = ""
+for stock_ticker in stock_tickers:
+    for page_type in PAGE_TO_DB.keys():
+        url = f"https://stockanalysis.com/stocks/{stock_ticker}/financials/{page_type}"
+        # URL needs to end with '/', otherwise permanent redirect
+        if url[-1] != '/':
+            url += '/'
+        p = scrape_stock(url)
+        df = pd.DataFrame(p.tables[0])
 
-    # Drop the "Current" year row
-    if df.iloc[0]["Year"] == "Current":
+        # Transpose and drop the paywalled years
+        df = df.T
+
+        # Make the top row the header
+        new_header = df.iloc[0]
         df = df[1:]
-    if df.iloc[-1].iloc[1] == "Upgrade":
-        df = df[:-1]
+        df.columns = new_header
+        df.columns.name = ""
 
-    df = df.set_index("Year")
+        # Drop the "Current" year row
+        if df.iloc[0]["Year"] == "Current":
+            df = df[1:]
+        if df.iloc[-1].iloc[1] == "Upgrade":
+            df = df[:-1]
 
-    # Make header names database-friendly
-    new_header = list(df.columns)
-    new_header = [header.replace("/", "over") for header in new_header]
-    new_header = [header.replace(" ", "_") for header in new_header]
-    new_header = [re.sub(r"[()]", "", header) for header in new_header]
-    df.columns = new_header
+        df = df.set_index("Year")
 
-    # df = df.replace('-', 0)
+        # Make header names database-friendly
+        new_header = list(df.columns)
+        new_header = [header.replace("/", "over") for header in new_header]
+        new_header = [header.replace(" ", "_") for header in new_header]
+        new_header = [re.sub(r"[()]", "", header) for header in new_header]
+        df.columns = new_header
 
-    def df_series_to_float(series):
-        series = series.str.replace(',', '')
-        dashes = series.str.fullmatch('-')
-        series[dashes] = "0"
-        percentages = series.str.contains('%')
-        try:
+        # df = df.replace('-', 0)
+
+        def df_series_to_float(series):
+            series = series.str.replace(',', '')
+            dashes = series.str.fullmatch('-')
+            series[dashes] = "0"
+            percentages = series.str.contains('%')
             series[percentages] = series[percentages].str.replace('%', '')
-        except Exception as e:
-            pprint(series)
-            pprint(percentages)
-            raise e
-        series = series.astype(float)
-        series[percentages] = series[percentages] / 100
-        return series
-    pprint(df.apply(df_series_to_float, axis=1))
+            series = series.astype(float)
+            series[percentages] = series[percentages] / 100
+            return series
+        df = df.apply(df_series_to_float, axis=1)
+        put_pandas_dataframe(stock_ticker, PAGE_TO_DB[page_type], df)
