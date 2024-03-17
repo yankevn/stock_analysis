@@ -1,4 +1,5 @@
 import boto3
+from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 import pandas as pd
 import json
@@ -52,10 +53,25 @@ def put_pandas_dataframe(stock_ticker: str, table_name: str, df):
         row_dict[STOCK_TICKER_KEY] = stock_ticker
         row_dict[YEAR_KEY] = year
         with client.batch_writer() as batch:
+            response = client.query(
+                KeyConditionExpression=Key(STOCK_TICKER_KEY).eq(stock_ticker) & Key(YEAR_KEY).eq(year)
+            )
+            if "Items" in response:
+                print(f"Skipping stock {stock_ticker} year {year}, as it is already in table {table_name}...")
+                continue
             batch.put_item(
                 Item=row_dict,
             )
-        
+
+
+def query_stock(stock_ticker: str):
+    stock_info = {}
+    for _, table_name in PAGE_TO_DB.items():
+        client = get_table_client(table_name)
+        response = client.query(KeyConditionExpression=Key(STOCK_TICKER_KEY).eq(stock_ticker))
+        stock_info[table_name] = response["Items"] if "Items" in response else []
+    return stock_info
+
 
 def to_attribute_numbers_map(row_dict: Dict[str, str]):
     attribute_map = {}
@@ -75,7 +91,6 @@ def get_low_level_db_client():
         )
     else:
         return boto3.client('dynamodb')
-
 
 
 def get_table_resource():

@@ -5,6 +5,7 @@ import re
 from dynamodb import (
     create_tables_if_not_exist,
     put_pandas_dataframe,
+    query_stock,
     PAGE_TO_DB,
 )
 from scrape import scrape_stock
