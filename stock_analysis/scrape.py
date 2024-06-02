@@ -9,6 +9,11 @@ from html_table_parser import HTMLTableParser
 # pandas dataframe
 import pandas as pd
 import urllib.request
+import yfinance as yf
+import math
+from decimal import Decimal
+
+from dynamodb import FinanceTermKeys
 
 
 def scrape_stock(url):
@@ -47,3 +52,18 @@ def url_get_contents(url):
 
     #reading contents of the website
     return f.read()
+
+
+def extract_treasury_stock(stock_ticker: str):
+    stock_ticker = stock_ticker.replace(".", "-")
+    ticker = yf.Ticker(stock_ticker)
+    balance_sheet = ticker.balance_sheet
+    year_to_treasury_stock = {}
+    for date in balance_sheet:
+        year = str(date)[:4]
+        if FinanceTermKeys.TREASURY_STOCK_RAW.value in balance_sheet[date] \
+                and not math.isnan(balance_sheet[date][FinanceTermKeys.TREASURY_STOCK_RAW.value]):
+            year_to_treasury_stock[year] = Decimal(balance_sheet[date][FinanceTermKeys.TREASURY_STOCK_RAW.value])
+    return year_to_treasury_stock
+
+extract_treasury_stock('BRK.B')

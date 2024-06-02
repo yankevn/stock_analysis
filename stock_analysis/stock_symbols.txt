@@ -1,2 +1,3 @@
+BRK.B
 GOOGL
 AMZN
